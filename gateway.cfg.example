@@ -1,0 +1,95 @@
+# ===========================================================================
+# REIGN OF FIRE BBS GROUP - C-NET TELNET GATEWAY (gateway.cfg)
+# ===========================================================================
+# One telnet front door that routes callers to the three C-Net boards.
+# Blank lines and lines starting with '#' or ';' are ignored.
+# ===========================================================================
+
+# --- General ---
+GATEWAY_TITLE = Reign of Fire BBS Group
+SYSOP_NAME = SpitfireTN
+LISTEN_HOST = 0.0.0.0
+LISTEN_PORT = 23
+ANSI_FILE = gateway.ans
+
+# No inbound SSH server (all three boards are telnet)
+SSH_ENABLED = FALSE
+
+# The gateway AUTO-DETECTS the caller via telnet TERMINAL-TYPE negotiation and serves two
+# different front-ends:
+#   * ANSI caller  -> this DISPLAY_MODE (80-column CP437 colour lightbar, arrow-key select)
+#   * PETSCII caller (Commodore C64/C128, silent/no TTYPE) -> a 40-column CBM-colour screen
+# DISPLAY_MODE here applies only to the ANSI path: LIGHTBAR (self-contained colour frame),
+# BOTH (gateway.ans + lightbar), or ANSI_HOTKEY (gateway.ans + hotkey prompt).
+DISPLAY_MODE = BOTH
+
+# DEFAULT_TERM = terminal assumed when the caller does NOT negotiate a terminal type.
+# Commodore terminals typically don't negotiate, so PETSCII is the safe default; ANSI/PC
+# clients (SyncTERM, NetRunner, ...) DO negotiate and are detected as ANSI automatically.
+DEFAULT_TERM = ANSI
+
+# TERMINAL_PROMPT = TRUE asks each caller "ANSI or Commodore?" at connect. Required because
+# no telnet signal reliably distinguishes a Commodore terminal (RGTerm reports an 80-col
+# "ANSI-BBS" type) from a PC ANSI terminal. Set FALSE to trust auto-detect only.
+# Design decision: OFF. ANSI terminals auto-route to the ANSI screen (C64 board transcoded);
+# no caller prompt. (Re-enable only if a per-caller Commodore/ANSI choice is ever wanted.)
+TERMINAL_PROMPT = FALSE
+
+# PUBLIC_HOST is shown to callers in the menu/connect screens in place of the real
+# internal host:port (so outside callers never see 127.0.0.1 / LAN IPs / port numbers).
+PUBLIC_HOST = call.rofbbs.com
+
+# TERMINAL_GATE = TRUE -> any connection that sends a non-terminal probe before the menu
+# (HTTP GET/POST, TLS, SSH-, SOCKS, binary junk) is dropped and temporarily banned.
+# This is the port-23 spam/bot blocker working alongside the rate limiter below.
+TERMINAL_GATE = TRUE
+
+# --- ANSI lightbar colours: Reign of Fire flame palette (red/orange/yellow/white) ---
+# DOS palette: 4=Red 12=LightRed(orange) 14=Yellow 15=White 0=Black
+COLOR_HEADER = 15
+COLOR_BORDER = 4
+COLOR_ITEM_FG = 12
+COLOR_ITEM_BG = 0
+COLOR_HILITE_FG = 15
+COLOR_HILITE_BG = 4
+
+# --- Session behaviour ---
+IDLE_TIMEOUT = 180
+CONNECT_TIMEOUT = 15
+RETURN_AFTER_DISCONNECT = TRUE
+
+# ===========================================================================
+# SECURITY / ANTI-SPAM
+# ===========================================================================
+SECURITY_ENABLED = TRUE
+MAX_CONNECTIONS_PER_IP = 2
+MAX_TOTAL_NODES = 16
+RATE_LIMIT_CONNECTIONS = 4
+RATE_LIMIT_WINDOW = 60
+AUTO_BAN_DURATION = 1800
+DENYLIST_FILE = denylist.txt
+ALLOWLIST_FILE = allowlist.txt
+
+# ===========================================================================
+# BOARD DIRECTORY
+#   BBS = Hotkey | Name | Host | Port | Mode | Description | [Charset]
+#   Mode: LOCAL = telnet on this box / trusted LAN, EXTERNAL = internet telnet
+#   Charset (optional 7th field):
+#     PETSCII = PETSCII-only C64 board (C-Net 64 DS2): gateway answers its terminal-detect as a
+#               Commodore term ($14) and live-transcodes PETSCII->ANSI for ANSI callers.
+#     CHOICE  = board drives its own ANSI/PETSCII menus (C-Net 128: [INST/DEL]=Commodore,
+#               [ESC]=ANSI). Caller answers the board's menus; gateway passes the native stream
+#               through untouched (no transcoding) but maps the caller's Backspace/Delete ->
+#               PETSCII INST/DEL ($14) so hitting DEL selects Commodore (and works as delete).
+#     ASCII / omitted = normal board, raw passthrough.
+# ===========================================================================
+BBS = 1 | Reign of Fire (C-Net Amiga) | call.rofbbs.com | 6800 | LOCAL | C-Net Amiga (Reign of Fire)
+BBS = 2 | Reign of Fire II (C-Net 64) | call.rofbbs.com | 6400 | LOCAL | Developer System II - C-Net 64 | PETSCII
+BBS = 3 | Reign of Fire III (C-Net 128) | call.rofbbs.com | 8502 | LOCAL | C-Net 128 v7.2 | CHOICE
+
+# ANSI_HOTKEY custom screen is self-contained; do not add RoFGate's own prompt
+HOTKEY_PROMPT = FALSE
+MENU_START_Y = 8
+MENU_ROWS = 4
+MENU_START_X = 3
+MENU_WIDTH = 76

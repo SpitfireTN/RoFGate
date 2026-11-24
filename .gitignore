@@ -1,0 +1,16 @@
+# Runtime / local-only files — never commit these (they hold your real
+# addresses and caller data). Copy the .example files to these names locally.
+gateway.cfg
+allowlist.txt
+denylist.txt
+rofgate.log
+rofgate.log.*
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / backup junk
+*.bak
+*.bak-*
+*~

@@ -1,0 +1,11 @@
+# Allowlisted IPs / subnets bypass rate-limiting, dupe-IP and ban checks.
+# (The terminal gate still applies, so LAN scanners are not exempt from that.)
+# Format: exact IP, CIDR subnet, or wildcard prefix (192.168.1.*)
+#
+# Copy this file to allowlist.txt and add your own addresses.
+# Put loopback, your LAN, and your own admin IP(s) here.
+
+127.0.0.1
+::1
+192.168.0.0/16
+# 203.0.113.42        # <- your own WAN IP (example)

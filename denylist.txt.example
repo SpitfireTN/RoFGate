@@ -1,0 +1,15 @@
+# ===========================================================================
+# BBS GATEWAY DENYLIST (denylist.txt)
+# ===========================================================================
+# Block incoming connections by exact IP, CIDR subnet, or wildcard prefix.
+# Blank lines and lines starting with # or ; are ignored.
+# NOTE: inline/trailing comments on an IP line are NOT supported by the parser
+#       (load_ip_list_file only skips whole-line comments). Keep each IP on its
+#       own bare line and put any note on a separate # line ABOVE it.
+# ===========================================================================
+#
+# Copy this file to denylist.txt and add offenders as you find them.
+
+# example placeholders (RFC5737 test nets, harmless)
+198.51.100.14
+203.0.113.0/24
