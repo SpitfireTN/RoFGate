@@ -1653,7 +1653,7 @@ class TelnetSession:
         lines = [
             top,
             bpad + "|04.------------------------------.",
-            bpad + "|04: |15Reign of Fire BBS's  CAPTCHA|04 :",
+            bpad + "|04: |14Reign |06of |12Fire |15BBS's  |10CAPTCHA|04 :",
             bpad + "|04:------------------------------'",
             bpad + "|04`----------------------> |15" + code,
             bpad + "|07 Enter those characters: ",
@@ -1672,10 +1672,10 @@ class TelnetSession:
 
         lines = [
             "",
-            cen("|08Reign of Fire BBS Group (C)1990-2026"),
+            cen("|14Reign |06of |12Fire |15BBS |07Group (C)1990-2026"),
             "",
-            cen("|08Telnet: call.rofbbs.com"),
-            cen("|08WEB: https://www.rofbbs.com"),
+            cen("|06Telnet: |14call.rofbbs.com"),
+            cen("|06WEB: |14https://www.rofbbs.com"),
         ]
         await self.send_ansi("\r\n".join(lines))
 
