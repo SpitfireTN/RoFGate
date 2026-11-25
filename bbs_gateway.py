@@ -396,6 +396,7 @@ class GatewayConfig:
     bounce_limit: int = 3       # this many bounces within bounce_window -> ban the IP
     bounce_window: int = 1800   # sliding window (seconds) for counting bounces
     botcheck: bool = False      # show a type-the-characters CAPTCHA before the menu (anti-bot)
+    botcheck_exempt_allowlist: bool = True  # allowlisted IPs skip the CAPTCHA (set FALSE to test it yourself)
     botcheck_len: int = 5       # number of random characters in the challenge code
     botcheck_attempts: int = 2  # tries allowed before the caller is dropped + ban-logged
     botcheck_timeout: int = 60  # seconds the caller has to answer each try
@@ -673,6 +674,8 @@ def load_gateway_config(cfg_path: str) -> GatewayConfig:
                 cfg.bounce_window = max(60, int(val))
             elif key == "BOTCHECK":
                 cfg.botcheck = parse_bool(val)
+            elif key == "BOTCHECK_EXEMPT_ALLOWLIST":
+                cfg.botcheck_exempt_allowlist = parse_bool(val)
             elif key == "BOTCHECK_LEN":
                 cfg.botcheck_len = max(3, min(10, int(val)))
             elif key == "BOTCHECK_ATTEMPTS":
@@ -1658,7 +1661,7 @@ class TelnetSession:
         Stops menu-scraping bots that pass the terminal gate but never interact. Allowlisted
         IPs (sysop/LAN) are exempt. On failure the caller is dropped and ban-logged so the
         `rofgate` fail2ban jail escalates it to a firewall ban."""
-        if self._is_allowlisted():
+        if self.cfg.botcheck_exempt_allowlist and self._is_allowlisted():
             return True
         alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"   # no 0/O/1/I/L ambiguity
         n = max(3, min(self.cfg.botcheck_len, 10))

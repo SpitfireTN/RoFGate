@@ -99,6 +99,7 @@ MENU_WIDTH = 76
 # 40 columns (works on ANSI and Commodore/PETSCII). Allowlisted IPs are exempt; a
 # failed/timed-out challenge drops the caller and logs a line fail2ban can ban on.
 BOTCHECK = FALSE
+BOTCHECK_EXEMPT_ALLOWLIST = TRUE   # FALSE lets you test the CAPTCHA from your own allowlisted IP
 BOTCHECK_LEN = 5
 BOTCHECK_ATTEMPTS = 2
 BOTCHECK_TIMEOUT = 60
