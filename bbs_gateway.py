@@ -1656,7 +1656,7 @@ class TelnetSession:
             bpad + "|04: |14Reign |06of |12Fire |15BBS's  |10CAPTCHA|04 :",
             bpad + "|04:------------------------------'",
             bpad + "|04`----------------------> |15" + code,
-            bpad + "|07 Enter those characters: ",
+            bpad + "|07 Enter those characters: |10",   # trailing |10 -> typed chars echo bright green
         ]
         await self.send_ansi("\r\n".join(lines))
 
