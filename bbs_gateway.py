@@ -1644,7 +1644,11 @@ class TelnetSession:
         bpad = " " * max(0, (W - 32) // 2)   # the box is 32 columns wide, centred
         lines = []
         if attempt:
-            lines.append(cen("|12(wrong - try again)"))
+            # bright-red BLINKING retry notice. Blink is not a Mystic pipe code, so emit raw
+            # ANSI (bold/bright red + blink); PETSCII callers get the plain text (ESC stripped).
+            msg = "WRONG - Try again!"
+            pad = " " * max(0, (W - len(msg)) // 2)
+            lines.append(pad + "\x1b[1;31;5m" + msg + "\x1b[0m")
         lines += [
             bpad + "|04.------------------------------.",
             bpad + "|04: |15Reign of Fire BBS's  CAPTCHA|04 :",
