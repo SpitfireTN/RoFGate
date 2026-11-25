@@ -1632,27 +1632,43 @@ class TelnetSession:
             await self.send_raw(b"\x1b[0m\x1b[2J\x1b[1;1H")    # ANSI clear+home
         W = 40
 
-        def c(colored: str) -> str:
+        def cen(colored: str) -> str:
             # centre within W columns on the VISIBLE text (strip |NN pipe-colour codes to measure)
             vis = re.sub(r"\|\d\d", "", colored)
             return " " * max(0, (W - len(vis)) // 2) + colored
 
-        retry = c(f"|12(try {attempt + 1} of {attempts})") if attempt else ""
+        # Type / arrow / Enter share ONE left indent (the arrow's centred column), so
+        # "Type these characters:" sits above the +----> line and "Enter..." right below it.
+        apad = " " * max(0, (W - (25 + len(code))) // 2)
+        note = cen("|12(wrong - try again)") if attempt else ""
         lines = [
-            c("|04+------------------------------+"),
-            c("|04: |15Reign of Fire BBS's  CAPTCHA|04 :"),
-            c("|04+------------------------------+"),
+            cen("|04+------------------------------+"),
+            cen("|04: |15Reign of Fire BBS's  CAPTCHA|04 :"),
+            cen("|04+------------------------------+"),
+            note,
             "",
-            c("|07Type these characters:"),
-            c("|04+----------------------> |15" + code),
-            retry,
+            apad + "|07Type these characters:",
+            apad + "|04+----------------------> |15" + code,
+            apad + "|07Enter the characters: ",
+        ]
+        await self.send_ansi("\r\n".join(lines))
+
+    async def _botcheck_welcome(self) -> None:
+        """Shown AFTER a correct answer: the Reign of Fire branding, held ~3s (the old
+        sys.botcheck \\w3 pause) before run() clears to the menu. Rendered BELOW the challenge
+        (no clear) so it reads as a continuation, like the C-Net original."""
+        W = 40
+
+        def cen(colored: str) -> str:
+            vis = re.sub(r"\|\d\d", "", colored)
+            return " " * max(0, (W - len(vis)) // 2) + colored
+
+        lines = [
             "",
-            c("|08Reign of Fire BBS Group (C)1990-2026"),
+            cen("|08Reign of Fire BBS Group (C)1990-2026"),
             "",
-            c("|08Telnet: call.rofbbs.com"),
-            c("|08https://www.rofbbs.com"),
-            "",
-            c("|07Enter the characters: "),
+            cen("|08Telnet: call.rofbbs.com"),
+            cen("|08https://www.rofbbs.com"),
         ]
         await self.send_ansi("\r\n".join(lines))
 
@@ -1673,6 +1689,8 @@ class TelnetSession:
             if answer is None:
                 break                                  # timeout / ESC / disconnect
             if answer.strip().upper() == code:
+                await self._botcheck_welcome()
+                await asyncio.sleep(3)              # old sys.botcheck \w3 pause before the menu
                 return True
         logging.warning("[BOTCHECK] Failed challenge from %s", self.client_ip)
         try:
