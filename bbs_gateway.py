@@ -28,6 +28,7 @@ import errno
 import fcntl
 import logging
 import logging.handlers
+import random
 import os
 import pty
 import re
@@ -394,6 +395,10 @@ class GatewayConfig:
     bounce_seconds: int = 120   # board sessions in [bounce_min, bounce_seconds] = a "login bounce"
     bounce_limit: int = 3       # this many bounces within bounce_window -> ban the IP
     bounce_window: int = 1800   # sliding window (seconds) for counting bounces
+    botcheck: bool = False      # show a type-the-characters CAPTCHA before the menu (anti-bot)
+    botcheck_len: int = 5       # number of random characters in the challenge code
+    botcheck_attempts: int = 2  # tries allowed before the caller is dropped + ban-logged
+    botcheck_timeout: int = 60  # seconds the caller has to answer each try
     default_term: str = "PETSCII"  # assumed caller type when telnet TTYPE is not negotiated
     hotkey_prompt: bool = True     # ANSI_HOTKEY mode: append RoFGate's own hotkey prompt below the .ans
     public_host: str = ""  # public name shown to callers in place of real internal host:port
@@ -666,6 +671,14 @@ def load_gateway_config(cfg_path: str) -> GatewayConfig:
                 cfg.bounce_limit = max(1, int(val))
             elif key == "BOUNCE_WINDOW":
                 cfg.bounce_window = max(60, int(val))
+            elif key == "BOTCHECK":
+                cfg.botcheck = parse_bool(val)
+            elif key == "BOTCHECK_LEN":
+                cfg.botcheck_len = max(3, min(10, int(val)))
+            elif key == "BOTCHECK_ATTEMPTS":
+                cfg.botcheck_attempts = max(1, int(val))
+            elif key == "BOTCHECK_TIMEOUT":
+                cfg.botcheck_timeout = max(10, int(val))
             elif key == "DEFAULT_TERM":
                 v = val.upper()
                 if v in ("ANSI", "PETSCII"):
@@ -1003,12 +1016,12 @@ class TelnetSession:
             if 32 <= ch <= 126:
                 return chr(ch)
 
-    async def prompt_line(self, prompt_text: str, default: str = "", mask: bool = False, max_len: int = 32) -> Optional[str]:
-        """Interactive single-line input prompt for SSH username/password when not pre-configured."""
+    async def prompt_line(self, prompt_text: str, default: str = "", mask: bool = False, max_len: int = 32, timeout: float = 60) -> Optional[str]:
+        """Interactive single-line input prompt (SSH username/password, botcheck answer, ...)."""
         await self.send_ansi(prompt_text)
         buf: List[str] = []
         while True:
-            k = await self.read_key(timeout=60)
+            k = await self.read_key(timeout=timeout)
             if k is None or k == "TIMEOUT" or k == "ESC":
                 return None
             if k == "ENTER":
@@ -1593,6 +1606,82 @@ class TelnetSession:
         b"<?XML", b"<NTP", b"\x00\x00\x00", b"\x1b\x1b",
     )
 
+    def _is_allowlisted(self) -> bool:
+        """True if this caller's IP is on the allowlist (sysop / LAN / loopback)."""
+        try:
+            cfg_dir = os.path.dirname(os.path.abspath(self.cfg_path))
+            return GLOBAL_SECURITY._match_ip_in_entries(
+                self.client_ip,
+                GLOBAL_SECURITY.load_ip_list_file(self.cfg.allowlist_file, self.cfg, cfg_dir),
+            )
+        except Exception:
+            return False
+
+    async def _render_botcheck(self, code: str, attempt: int, attempts: int) -> None:
+        """Draw the 'type these characters' CAPTCHA box. Mirrors DH3:CNet/SysText/sys.botcheck,
+        kept <=39 columns so it renders on 40-column Commodore terminals too. Colour via Mystic
+        pipe codes (|NN); NO literal '|' is used (that is the pipe-code prefix). send_ansi strips
+        the colour + converts to PETSCII for Commodore callers automatically."""
+        # Per-terminal clear/home (send_ansi strips raw ESC for PETSCII, so clear explicitly).
+        if self.term == "PETSCII":
+            await self.send_raw(b"\x93")                       # PETSCII clear
+        else:
+            await self.send_raw(b"\x1b[0m\x1b[2J\x1b[1;1H")    # ANSI clear+home
+        W = 40
+
+        def c(colored: str) -> str:
+            # centre within W columns on the VISIBLE text (strip |NN pipe-colour codes to measure)
+            vis = re.sub(r"\|\d\d", "", colored)
+            return " " * max(0, (W - len(vis)) // 2) + colored
+
+        retry = c(f"|12(try {attempt + 1} of {attempts})") if attempt else ""
+        lines = [
+            c("|04+------------------------------+"),
+            c("|04: |15Reign of Fire BBS's  CAPTCHA|04 :"),
+            c("|04+------------------------------+"),
+            "",
+            c("|07Type these characters:"),
+            c("|04+----------------------> |15" + code),
+            retry,
+            "",
+            c("|08Reign of Fire BBS Group (C)1990-2026"),
+            "",
+            c("|08Telnet: call.rofbbs.com"),
+            c("|08https://www.rofbbs.com"),
+            "",
+            c("|07Enter the characters: "),
+        ]
+        await self.send_ansi("\r\n".join(lines))
+
+    async def _botcheck(self) -> bool:
+        """Human CAPTCHA shown BEFORE the menu: the caller must type a short random code.
+        Stops menu-scraping bots that pass the terminal gate but never interact. Allowlisted
+        IPs (sysop/LAN) are exempt. On failure the caller is dropped and ban-logged so the
+        `rofgate` fail2ban jail escalates it to a firewall ban."""
+        if self._is_allowlisted():
+            return True
+        alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"   # no 0/O/1/I/L ambiguity
+        n = max(3, min(self.cfg.botcheck_len, 10))
+        attempts = max(1, self.cfg.botcheck_attempts)
+        for attempt in range(attempts):
+            code = "".join(random.choice(alphabet) for _ in range(n))
+            await self._render_botcheck(code, attempt, attempts)
+            answer = await self.prompt_line("", max_len=n + 4, timeout=self.cfg.botcheck_timeout)
+            if answer is None:
+                break                                  # timeout / ESC / disconnect
+            if answer.strip().upper() == code:
+                return True
+        logging.warning("[BOTCHECK] Failed challenge from %s", self.client_ip)
+        try:
+            await GLOBAL_SECURITY.add_runtime_ban(self.client_ip, self.cfg.auto_ban_duration)
+        except Exception:
+            pass
+        try:
+            await self.send_ansi("\r\n|12Verification failed. Disconnecting.|07\r\n")
+        except Exception:
+            pass
+        return False
+
     async def _terminal_gate(self, early: bytes = b"") -> bool:
         """Sniff the caller's first payload. A real human terminal stays SILENT here (it is
         waiting to read the menu, which has not been sent yet), so a timeout or an
@@ -1684,6 +1773,11 @@ class TelnetSession:
                 "Caller %s:%s terminal=%s (auto=%s TTYPE=%s NAWS=%s)",
                 self.client_ip, self.client_port, self.term, auto, ttype or "none", naws or "none",
             )
+            # Human CAPTCHA before the menu (anti-bot). Renders for ANSI and 40-col PETSCII;
+            # allowlisted callers are exempt; a failure drops + ban-logs the caller.
+            if (not self.is_inbound_ssh and self.cfg.security_enabled
+                    and self.cfg.botcheck and not await self._botcheck()):
+                return
             force_lightbar = False
             await self.render_full_screen(force_lightbar=force_lightbar)
 

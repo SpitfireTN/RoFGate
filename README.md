@@ -26,6 +26,10 @@ transcoder, and a port-23 anti-scanner layer.
 - **Anti-scanner defence on port 23**: a terminal gate that drops non-terminal
   probes (HTTP/TLS/SSH/binary), per-IP rate limiting, a login-bounce detector, and
   allow/deny lists. Designed to pair with fail2ban (tail `rofgate.log`).
+- **Optional human CAPTCHA before the menu** (`BOTCHECK`): the caller must type a
+  short random code to proceed, which stops low-and-slow menu-scraper bots that pass
+  the terminal gate but never interact. Centred to 40 columns (ANSI + PETSCII), with
+  allowlisted IPs exempt and failures ban-logged for fail2ban.
 
 ## Quick start
 
