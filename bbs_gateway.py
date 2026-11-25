@@ -1019,8 +1019,10 @@ class TelnetSession:
             if 32 <= ch <= 126:
                 return chr(ch)
 
-    async def prompt_line(self, prompt_text: str, default: str = "", mask: bool = False, max_len: int = 32, timeout: float = 60) -> Optional[str]:
-        """Interactive single-line input prompt (SSH username/password, botcheck answer, ...)."""
+    async def prompt_line(self, prompt_text: str, default: str = "", mask: bool = False, max_len: int = 32, timeout: float = 60, upper: bool = False) -> Optional[str]:
+        """Interactive single-line input prompt (SSH username/password, botcheck answer, ...).
+        upper=True echoes + stores each letter uppercased (so the answer matches the all-caps
+        CAPTCHA code shown above it)."""
         await self.send_ansi(prompt_text)
         buf: List[str] = []
         while True:
@@ -1037,6 +1039,8 @@ class TelnetSession:
                     await self.send_raw(b"\x08 \x08")
                 continue
             if len(k) == 1 and len(buf) < max_len:
+                if upper:
+                    k = k.upper()
                 buf.append(k)
                 echo_ch = "*" if mask else k
                 await self.send_raw(echo_ch.encode("cp437"))
@@ -1637,19 +1641,16 @@ class TelnetSession:
             vis = re.sub(r"\|\d\d", "", colored)
             return " " * max(0, (W - len(vis)) // 2) + colored
 
-        # Type / arrow / Enter share ONE left indent (the arrow's centred column), so
-        # "Type these characters:" sits above the +----> line and "Enter..." right below it.
-        apad = " " * max(0, (W - (25 + len(code))) // 2)
-        note = cen("|12(wrong - try again)") if attempt else ""
-        lines = [
-            cen("|04+------------------------------+"),
-            cen("|04: |15Reign of Fire BBS's  CAPTCHA|04 :"),
-            cen("|04+------------------------------+"),
-            note,
-            "",
-            apad + "|07Type these characters:",
-            apad + "|04+----------------------> |15" + code,
-            apad + "|07Enter the characters: ",
+        bpad = " " * max(0, (W - 32) // 2)   # the box is 32 columns wide, centred
+        lines = []
+        if attempt:
+            lines.append(cen("|12(wrong - try again)"))
+        lines += [
+            bpad + "|04.------------------------------.",
+            bpad + "|04: |15Reign of Fire BBS's  CAPTCHA|04 :",
+            bpad + "|04:------------------------------'",
+            bpad + "|04`----------------------> |15" + code,
+            bpad + "|07 Enter those characters: ",
         ]
         await self.send_ansi("\r\n".join(lines))
 
@@ -1668,7 +1669,7 @@ class TelnetSession:
             cen("|08Reign of Fire BBS Group (C)1990-2026"),
             "",
             cen("|08Telnet: call.rofbbs.com"),
-            cen("|08https://www.rofbbs.com"),
+            cen("|08WEB: https://www.rofbbs.com"),
         ]
         await self.send_ansi("\r\n".join(lines))
 
@@ -1685,7 +1686,7 @@ class TelnetSession:
         for attempt in range(attempts):
             code = "".join(random.choice(alphabet) for _ in range(n))
             await self._render_botcheck(code, attempt, attempts)
-            answer = await self.prompt_line("", max_len=n + 4, timeout=self.cfg.botcheck_timeout)
+            answer = await self.prompt_line("", max_len=n + 4, timeout=self.cfg.botcheck_timeout, upper=True)
             if answer is None:
                 break                                  # timeout / ESC / disconnect
             if answer.strip().upper() == code:
