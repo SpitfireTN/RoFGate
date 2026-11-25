@@ -1696,6 +1696,7 @@ class TelnetSession:
             if answer is None:
                 break                                  # timeout / ESC / disconnect
             if answer.strip().upper() == code:
+                logging.info("[BOTCHECK] Passed challenge from %s", self.client_ip)
                 await self._botcheck_welcome()
                 await asyncio.sleep(3)              # old sys.botcheck \w3 pause before the menu
                 return True
